@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>甘青10日行程智能助手（完整版）</title>
+  <script src="https://cdn.tailwindcss.com/3.3.3"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+  <style>
+    body { font-family: 'Noto Sans SC', sans-serif; background: #f8fafc; color: #1e293b; }
+    .card { transition: all 0.3s ease; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+    .card:hover { transform: translateY(-5px); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
+    .tag { display: inline-flex; align-items: center; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 500; }
+    .sunny { background: #fef3c7; color: #92400e; }
+    .cloudy { background: #e0e7ff; color: #3730a3; }
+    .rainy { background: #dbeafe; color: #1e40af; }
+    .alt-low { background: #d1fae5; color: #065f46; }
+    .alt-mid { background: #fed7aa; color: #9a3412; }
+    .alt-high { background: #fecaca; color: #991b1b; }
+    .den-low { background: linear-gradient(135deg, #d1fae5, #a7f3d0); }
+    .den-mid { background: linear-gradient(135deg, #fef3c7, #fde68a); }
+    .den-high { background: linear-gradient(135deg, #fecaca, #fca5a5); }
+    .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); }
+    .modal-content { background: #fff; margin: 5% auto; padding: 20px; border-radius: 12px; width: 90%; max-width: 800px; max-height: 80vh; overflow-y: auto; }
+    .poi-card { transition: all 0.2s; cursor: pointer; }
+    .poi-card:hover { transform: translateX(5px); background: #f1f5f9; }
+    .spinner { animation: spin 1s linear infinite; }
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    .tab-active { background: #3b82f6; color: white; }
+    .tab-inactive { background: #e5e7eb; color: #6b7280; }
+    .warning { animation: pulse 2s infinite; }
+    @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
+    .chart { height: 300px; position: relative; }
+    .scroll { max-height: 400px; overflow-y: auto; }
+    .refresh-btn { background: linear-gradient(135deg, #3b82f6, #1d4ed8); }
+    .refresh-btn:hover { background: linear-gradient(135deg, #2563eb, #1e40af); }
+  </style>
+</head>
+<body class="min-h-screen">
+  <div class="container mx-auto px-4 py-8">
+    <!-- 頭部 -->
+    <div class="text-center mb-8">
+      <h1 class="text-4xl font-bold text-slate-800 mb-2">甘青10日行程智能助手</h1>
+      <div class="mb-4">
+        <label for="tripStartDate" class="block text-sm font-medium text-gray-700 mb-2">選擇出發日期：</label>
+        <div class="flex justify-center items-center gap-4">
+          <input type="date" id="tripStartDate" 
+                 class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                 onchange="updateTripDates()">
+          <button onclick="setToday()" 
+                  class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
+            <i class="fas fa-calendar-day mr-2"></i>設為今天
+          </button>
+        </div>
+      </div>
+      <p id="tripDateRange" class="text-slate-600 mb-4">選擇日期後顯示行程時間 | 天氣預報・海拔分析</p>
+    </div>
+
+    <!-- 分頁導航 -->
+    <div class="flex flex-wrap justify-center gap-2 mb-8">
+      <button onclick="switchTab('weather')" id="tab-weather" class="px-6 py-2 rounded-lg font-medium tab-active transition-all">
+        <i class="fas fa-cloud-sun mr-2"></i>天氣預報
+      </button>
+              <button onclick="switchTab('altitude')" id="tab-altitude" class="px-6 py-2 rounded-lg font-medium tab-inactive transition-all">
+          <i class="fas fa-mountain mr-2"></i>海拔分析
+        </button>
+      <button onclick="loadAll()" class="px-6 py-2 rounded-lg font-medium bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:shadow-lg transition-all">
+        <i class="fas fa-sync-alt mr-2"></i>更新數據
+      </button>
+      <button onclick="shareWeatherForecast()" 
+              class="px-6 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 hover:shadow-lg transition-all duration-300">
+        <i class="fas fa-share mr-2"></i>分享行程
+      </button>
+    </div>
+
+    <div id="content">
+      <!-- 天氣預報頁面 -->
+      <div id="weather-section" class="tab-content">
+        <div id="weather-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-12">
+          <div class="col-span-full text-center py-12">
+            <i class="fas fa-spinner spinner text-4xl text-blue-500 mb-4"></i>
+            <p class="text-lg">載入天氣數據中...</p>
+          </div>
+        </div>
+
+        <!-- 溫度趨勢圖表 -->
+        <div id="chartSection" class="bg-white rounded-xl p-6 mb-12" style="display: none;">
+          <h2 class="text-xl font-semibold mb-6"><i class="fas fa-chart-line mr-2"></i>全行程溫度趨勢</h2>
+          <div class="chart-container">
+            <canvas id="tempChart"></canvas>
+          </div>
+        </div>
+
+        <!-- 統計信息 -->
+        <div id="statsSection" class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12" style="display: none;">
+          <div class="bg-white rounded-xl p-6 text-center">
+            <i class="fas fa-thermometer-half text-3xl text-red-500 mb-3"></i>
+            <h3 class="font-semibold text-gray-700">平均溫度</h3>
+            <p id="avgTemp" class="text-2xl font-bold text-red-500">--°C</p>
+          </div>
+          <div class="bg-white rounded-xl p-6 text-center">
+            <i class="fas fa-eye text-3xl text-blue-500 mb-3"></i>
+            <h3 class="font-semibold text-gray-700">最佳天氣天數</h3>
+            <p id="goodWeatherDays" class="text-2xl font-bold text-blue-500">-- 天</p>
+          </div>
+          <div class="bg-white rounded-xl p-6 text-center">
+            <i class="fas fa-umbrella text-3xl text-gray-500 mb-3"></i>
+            <h3 class="font-semibold text-gray-700">需要雨具天數</h3>
+            <p id="rainyDays" class="text-2xl font-bold text-gray-500">-- 天</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- 海拔分析頁面 -->
+      <div id="altitude-section" class="tab-content hidden">
+        <div class="bg-white rounded-xl p-6 mb-8">
+          <h2 class="text-2xl font-bold mb-6"><i class="fas fa-chart-area mr-2"></i>全程海拔變化圖</h2>
+          <div class="chart">
+            <canvas id="altChart"></canvas>
+          </div>
+          <div class="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="bg-gradient-to-br from-white to-gray-50 rounded-lg p-4 text-center">
+              <i class="fas fa-arrow-up text-3xl text-red-500 mb-2"></i>
+              <h3 class="font-semibold">最高海拔</h3>
+              <p id="maxAlt" class="text-2xl font-bold text-red-500">-- m</p>
+            </div>
+            <div class="bg-gradient-to-br from-white to-gray-50 rounded-lg p-4 text-center">
+              <i class="fas fa-arrow-down text-3xl text-green-500 mb-2"></i>
+              <h3 class="font-semibold">最低海拔</h3>
+              <p id="minAlt" class="text-2xl font-bold text-green-500">-- m</p>
+            </div>
+            <div class="bg-gradient-to-br from-white to-gray-50 rounded-lg p-4 text-center">
+              <i class="fas fa-exclamation-triangle text-3xl text-orange-500 mb-2"></i>
+              <h3 class="font-semibold">高原反應風險</h3>
+              <p id="altRisk" class="text-xl font-bold text-orange-500">--</p>
+            </div>
+          </div>
+        </div>
+        <div id="alt-cards" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+      </div>
+
+
+
+      
+    </div>
+
+    <!-- 模態對話框 -->
+    <div id="modal" class="modal">
+      <div class="modal-content">
+        <span onclick="closeModal()" class="float-right cursor-pointer text-2xl hover:text-red-500">&times;</span>
+        <h2 id="modalTitle" class="text-2xl font-bold mb-4"></h2>
+        <div id="modalContent" class="space-y-4"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // --- API Key 配置 ---
+    // 和風天氣 API Key
+    const HEFENG_API_KEY = 'c8b6014c4167454ba1e7f7106353f8e6';
+    
+    // --- 全域變數 ---
+    let tripStartDate = new Date();
+    let altChart, tempChart;
+    
+    // --- 基礎行程配置 (使用和風天氣城市ID) ---
+    const baseItineraryConfig = [
+      { day: "D1", location: "蘭州", locationId: "101160101", alt: 1520, itinerary: "下午4點抵達，酒店入住，晚餐，黃河夜景", outfit: "輕便休閒裝" },
+      { day: "D2", location: "蘭州", locationId: "101160101", alt: 1520, itinerary: "甘肅省博物館，五泉山公園，蘭州老街", outfit: "文化裝：長褲+防曬帽" },
+      { day: "D3", location: "門源", locationId: "101160302", alt: 2880, itinerary: "門源油菜花，祁連山草原", outfit: "戶外裝：速干長袖+防風外套" },
+      { day: "D4", location: "張掖", locationId: "101160601", alt: 1474, itinerary: "平山湖大峽谷，七彩丹霞", outfit: "戶外攝影裝：防風外套+防滑鞋" },
+      { day: "D5", location: "嘉峪關", locationId: "101160701", alt: 1650, itinerary: "嘉峪關關城，長城第一墩", outfit: "文化遊：棉麻長袖+遮陽帽" },
+      { day: "D6", location: "敦煌", locationId: "101160801", alt: 1139, itinerary: "莫高窟，鳴沙山月牙泉", outfit: "沙漠裝：防風沙眼鏡+頭巾" },
+      { day: "D7", location: "大柴旦", locationId: "101160203", alt: 3173, itinerary: "絲綢遺址城，黑獨山", outfit: "探索裝：工裝外套+防滑靴" },
+      { day: "D8", location: "茶卡", locationId: "101160204", alt: 3059, itinerary: "水上雅丹，前往茶卡鹽湖", outfit: "鹽湖裝：亮色長裙/褲+拖鞋" },
+      { day: "D9", location: "茶卡", locationId: "101160204", alt: 3059, itinerary: "茶卡鹽湖全日遊（天空之鏡）", outfit: "攝影裝：鮮豔色彩衣物" },
+      { day: "D10", location: "西寧", locationId: "101160301", alt: 2261, itinerary: "青海湖，日月山，返回西寧", outfit: "返程裝：舒適便裝" }
+    ];
+
+    // 動態生成帶日期的行程配置
+    function getItineraryConfig(startDate = tripStartDate) {
+      return baseItineraryConfig.map((item, index) => {
+        const currentDate = new Date(startDate);
+        currentDate.setDate(currentDate.getDate() + index);
+        return {
+          ...item,
+          date: `${currentDate.getMonth() + 1}/${currentDate.getDate()}`,
+          fullDate: currentDate.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' }),
+          isoDate: currentDate.toISOString().split('T')[0]
+        };
+      });
+    }
+
+    // --- 初始化與事件綁定 ---
+    window.onload = function() {
+      setToday();
+    };
+
+    // --- 主流程控制 ---
+    async function loadAll() {
+      showLoading();
+      try {
+        await Promise.all([loadWeather(), loadAltitude()]);
+      } catch(e) {
+        console.error('數據載入過程中發生錯誤:', e);
+        showError('數據載入失敗，請檢查控制台。');
+      }
+    }
+
+    function switchTab(t) {
+      document.querySelectorAll('[id^="tab-"]').forEach(b => {
+        b.classList.toggle('tab-active', b.id === `tab-${t}`);
+        b.classList.toggle('tab-inactive', b.id !== `tab-${t}`);
+      });
+      document.querySelectorAll('.tab-content').forEach(s => s.classList.add('hidden'));
+      document.getElementById(`${t}-section`).classList.remove('hidden');
+    }
+
+    // --- 日期管理 ---
+    function updateTripDates() {
+      const dateInput = document.getElementById('tripStartDate');
+      if (dateInput.value) {
+        tripStartDate = new Date(dateInput.value);
+        updateDateRangeDisplay();
+        loadAll();
+      }
+    }
+
+    function setToday() {
+      const today = new Date();
+      tripStartDate = today;
+      document.getElementById('tripStartDate').value = today.toISOString().split('T')[0];
+      updateDateRangeDisplay();
+      loadAll();
+    }
+
+    function updateDateRangeDisplay() {
+      const startDate = new Date(tripStartDate);
+      const endDate = new Date(tripStartDate);
+      endDate.setDate(endDate.getDate() + baseItineraryConfig.length - 1);
+      const formatDate = (date) => date.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' });
+      document.getElementById('tripDateRange').textContent = 
+        `${formatDate(startDate)} - ${formatDate(endDate)} | 天氣預報 (7日)・海拔分析`;
+    }
+
+    // --- 天氣模組 (已遷移至和風天氣) ---
+    async function loadWeather() {
+      const currentItinerary = getItineraryConfig();
+      const promises = currentItinerary.map(city => fetchHefengWeather(city));
+      const weatherData = await Promise.all(promises);
+      
+      renderWeatherCards(weatherData);
+      renderTemperatureChart(weatherData);
+      renderStats(weatherData);
+      
+      document.getElementById('chartSection').style.display = 'block';
+      document.getElementById('statsSection').style.display = 'grid';
+    }
+
+    async function fetchHefengWeather(city) {
+      const now = new Date();
+      const travelDate = new Date(city.isoDate);
+      const diffDays = Math.ceil((travelDate - now) / (1000 * 60 * 60 * 24));
+
+      if (diffDays >= 7) {
+        return { ...city, status: 'NO_FORECAST', error: '預報超過7天限制' };
+      }
+
+      try {
+        const url = `https://devapi.qweather.com/v7/weather/7d?location=${city.locationId}&key=${HEFENG_API_KEY}`;
+        
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`HTTP 錯誤! 狀態: ${response.status}`);
+        
+        const data = await response.json();
+        if (data.code !== '200') throw new Error(data.code || 'API 返回錯誤');
+
+        const specificForecast = data.daily.find(cast => cast.fxDate === city.isoDate);
+
+        if (!specificForecast) {
+           return { ...city, status: 'NO_FORECAST', error: '當日預報數據不存在' };
+        }
+
+        return {
+          ...city,
+          status: 'SUCCESS',
+          weather: specificForecast.textDay,
+          temperature: parseInt(specificForecast.tempMax),
+          tempMin: parseInt(specificForecast.tempMin),
+          humidity: specificForecast.humidity,
+          windDirection: specificForecast.windDirDay,
+          windPower: specificForecast.windScaleDay + '級',
+          reportTime: data.updateTime,
+          forecasts: data.daily,
+          error: null
+        };
+      } catch (error) {
+        console.error(`獲取 ${city.location} 天氣失敗:`, error);
+        return { ...city, status: 'FETCH_FAILED', error: error.message };
+      }
+    }
+
+    function renderWeatherCards(weatherData) {
+      const weatherGrid = document.getElementById('weather-grid');
+      weatherGrid.innerHTML = '';
+
+      weatherData.forEach(data => {
+        let cardHtml = '';
+        const isNotAvailable = data.status === 'NO_FORECAST';
+        const hasError = data.status === 'FETCH_FAILED';
+
+        if (isNotAvailable || hasError) {
+          const message = isNotAvailable ? '預報尚未發布' : '數據獲取失敗';
+          const reason = isNotAvailable ? '和風天氣僅提供7天內預報' : data.error;
+
+          cardHtml = `
+          <div class="card bg-gray-100 rounded-xl p-6 opacity-70">
+            <div>
+              <div class="flex justify-between items-start mb-4">
+                <div>
+                  <h3 class="text-xl font-semibold text-gray-600">${data.day} ${data.location}</h3>
+                  <p class="text-gray-500 text-sm">${data.date}</p>
+                </div>
+                <span class="tag bg-gray-300 text-gray-600"><i class="fas fa-hourglass-half mr-1"></i> 待定</span>
+              </div>
+              <div class="text-center py-8">
+                <p class="font-semibold text-gray-700">${message}</p>
+                <p class="text-xs text-gray-500 mt-1">${reason}</p>
+              </div>
+              <div class="border-t border-slate-200 pt-3 mt-3">
+                <h4 class="font-medium text-gray-600 mb-1">行程</h4>
+                <p class="text-slate-600 text-sm">${data.itinerary}</p>
+              </div>
+            </div>
+          </div>`;
+        } else {
+          const weatherInfo = getWeatherVisuals(data.weather);
+          const tempDisplay = `${data.temperature}°C`;
+          const forecastTemp = `${data.temperature}°C / ${data.tempMin}°C`;
+
+          const altWarning = data.alt > 3000 ? `<div class="mb-2"><span class="tag alt-high"><i class="fas fa-exclamation-triangle mr-1 warning"></i>高海拔 ${data.alt}m</span></div>` : data.alt > 2500 ? `<div class="mb-2"><span class="tag alt-mid"><i class="fas fa-mountain mr-1"></i>中海拔 ${data.alt}m</span></div>` : `<div class="mb-2"><span class="tag alt-low"><i class="fas fa-check mr-1"></i>舒適海拔 ${data.alt}m</span></div>`;
+
+          cardHtml = `
+          <div class="card bg-white rounded-xl p-6">
+            <div>
+              <div class="flex justify-between items-start mb-4">
+                <div>
+                  <h3 class="text-xl font-semibold">${data.day} ${data.location}</h3>
+                  <p class="text-slate-500 text-sm">${data.date}</p>
+                  <p class="text-slate-400 text-xs">${data.fullDate}</p>
+                </div>
+                <span class="tag ${weatherInfo.color}"><i class="fas ${weatherInfo.icon} mr-1"></i> ${data.weather}</span>
+              </div>
+              ${altWarning}
+              <div class="flex items-center justify-between mb-4">
+                <div class="text-4xl font-bold">${tempDisplay}</div>
+                <div class="text-slate-600 text-sm">
+                  <div><i class="fas fa-thermometer-half mr-1"></i> 預報: ${forecastTemp}</div>
+                  <div><i class="fas fa-wind mr-1"></i> ${data.windDirection} ${data.windPower}</div>
+                  <div><i class="fas fa-tint mr-1"></i> 濕度: ${data.humidity}%</div>
+                </div>
+              </div>
+              ${data.alt > 3000 ? '<div class="bg-red-50 p-3 rounded-lg mb-3"><p class="text-red-600 font-semibold text-sm"><i class="fas fa-exclamation-circle mr-1"></i>高原反應預警</p><p class="text-xs text-red-500">建議：多喝水，避免劇烈運動</p></div>' : ''}
+              <div class="border-t border-slate-100 pt-3 mt-3"><h4 class="font-medium mb-1">行程</h4><p class="text-slate-600 text-sm">${data.itinerary}</p></div>
+              <div class="border-t border-slate-100 pt-3 mt-3"><h4 class="font-medium mb-1">穿搭建議</h4><p class="text-slate-600 text-sm">${data.outfit}</p></div>
+            </div>
+            <div class="mt-4 text-xs text-slate-400"><i class="fas fa-clock mr-1"></i>數據更新於: ${new Date(data.reportTime).toLocaleString()}</div>
+          </div>`;
+        }
+        weatherGrid.innerHTML += cardHtml;
+      });
+    }
+
+    function renderTemperatureChart(weatherData) {
+      const ctx = document.getElementById('tempChart').getContext('2d');
+      if (tempChart) tempChart.destroy();
+
+      const validData = weatherData.filter(d => d.status === 'SUCCESS');
+      const labels = validData.map(d => `${d.day}\n${d.location}`);
+      const dayTemps = validData.map(d => d.temperature);
+      const nightTemps = validData.map(d => d.tempMin);
+
+      tempChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [
+            { label: '預報高溫 (°C)', data: dayTemps, borderColor: '#ef4444', tension: 0.3, fill: false },
+            { label: '預報低溫 (°C)', data: nightTemps, borderColor: '#3b82f6', tension: 0.3, fill: false }
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          scales: { y: { beginAtZero: false, title: { display: true, text: '溫度 (°C)' } } },
+          plugins: { legend: { display: true, position: 'top' }, tooltip: { mode: 'index', intersect: false } }
+        }
+      });
+    }
+
+    function renderStats(weatherData) {
+      const validData = weatherData.filter(d => d.status === 'SUCCESS');
+      const avgTemp = validData.length > 0 ? (validData.reduce((sum, d) => sum + d.temperature, 0) / validData.length).toFixed(1) : '--';
+      const goodWeatherCount = validData.filter(d => d.weather.includes('晴') || d.weather.includes('多雲')).length;
+      const rainyWeatherCount = validData.filter(d => d.weather.includes('雨') || d.weather.includes('雷') || d.weather.includes('雪')).length;
+
+      document.getElementById('avgTemp').textContent = avgTemp !== '--' ? `${avgTemp}°C` : '--';
+      document.getElementById('goodWeatherDays').textContent = `${goodWeatherCount} 天`;
+      document.getElementById('rainyDays').textContent = `${rainyWeatherCount} 天`;
+    }
+
+    function getWeatherVisuals(weather) {
+      if (weather.includes('雨') || weather.includes('雷')) return { icon: 'fa-cloud-rain', color: 'rainy' };
+      if (weather.includes('雪')) return { icon: 'fa-snowflake', color: 'rainy' };
+      if (weather.includes('晴')) return { icon: 'fa-sun', color: 'sunny' };
+      if (weather.includes('陰') || weather.includes('多雲') || weather.includes('雲')) return { icon: 'fa-cloud', color: 'cloudy' };
+      if (weather.includes('霧') || weather.includes('霾')) return { icon: 'fa-smog', color: 'cloudy' };
+      return { icon: 'fa-question-circle', color: 'cloudy' };
+    }
+    
+    // --- 海拔模組 ---
+    async function loadAltitude() {
+        const currentItinerary = getItineraryConfig();
+        const alts = currentItinerary.map(c => c.alt);
+      const max = Math.max(...alts), min = Math.min(...alts);
+      document.getElementById('maxAlt').textContent = `${max} m`;
+      document.getElementById('minAlt').textContent = `${min} m`;
+      const high = alts.filter(a => a > 3000).length;
+      document.getElementById('altRisk').textContent = high > 3 ? '高' : high > 1 ? '中' : '低';
+        renderAltChart();
+    }
+
+    function renderAltChart() {
+      const ctx = document.getElementById('altChart').getContext('2d');
+      if (altChart) altChart.destroy();
+       const currentItinerary = getItineraryConfig();
+      altChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: currentItinerary.map(c => `${c.day} ${c.location}`),
+          datasets: [{
+            label: '海拔高度 (m)',
+            data: currentItinerary.map(c => c.alt),
+            borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)',
+            fill: true, tension: 0.3,
+            pointBackgroundColor: currentItinerary.map(c => c.alt > 3000 ? '#ef4444' : c.alt > 2500 ? '#f59e0b' : '#10b981')
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false }, tooltip: { callbacks: { afterLabel: (ctx) => { const alt = ctx.parsed.y; if (alt > 3000) return '⚠️ 高原反應風險'; if (alt > 2500) return '注意防曬保暖'; return '舒適海拔'; } } } },
+          scales: { y: { beginAtZero: false, title: { display: true, text: '海拔 (米)' } } }
+        }
+      });
+    }
+
+    // --- UI 輔助函數 ---
+    function showLoading() {
+      document.getElementById('weather-grid').innerHTML = `<div class="col-span-full text-center py-12"><i class="fas fa-spinner spinner text-4xl text-blue-500 mb-4"></i><p class="text-lg font-medium">正在載入天氣數據...</p></div>`;
+    }
+    
+    function showError(message) {
+        document.getElementById('weather-grid').innerHTML = `<div class="col-span-full text-center py-12 bg-red-50 rounded-lg"><p class="text-red-600">${message}</p></div>`;
+    }
+    
+    // --- 分享功能 ---
+    function shareWeatherForecast() {
+      const startDate = new Date(tripStartDate);
+      const endDate = new Date(tripStartDate);
+      endDate.setDate(endDate.getDate() + baseItineraryConfig.length - 1);
+      const formatDate = (date) => date.toLocaleDateString('zh-CN', { month: 'long', day: 'numeric' });
+
+      const shareText = `🌤️ 甘青10日行程智能助手\n📅 ${formatDate(startDate)} - ${formatDate(endDate)}\n🗺️ 蘭州→門源→張掖→嘉峪關→敦煌→大柴旦→茶卡→西寧\n⛰️ 包含海拔預警和高原反應提醒\n🌡️ 實時天氣預報與動態日期\n\n📱 查看詳細: ${window.location.href}`;
+
+      if (navigator.share) {
+        navigator.share({ title: '甘青10日行程智能助手', text: shareText, url: window.location.href })
+          .catch(() => fallbackShare(shareText));
+      } else {
+        fallbackShare(shareText);
+      }
+    }
+
+    function fallbackShare(shareText) {
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(shareText).then(() => {
+          showShareSuccess('行程信息已複製到剪貼板！');
+        });
+      }
+    }
+
+    function showShareSuccess(message) {
+      const alert = document.createElement('div');
+      alert.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
+      alert.innerHTML = `<i class="fas fa-check mr-2"></i>${message}`;
+      document.body.appendChild(alert);
+      setTimeout(() => alert.remove(), 3000);
+    }
+  </script>
+</body>
+</html> 
