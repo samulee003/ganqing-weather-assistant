@@ -158,7 +158,7 @@
   <script>
     // --- API Key 配置 ---
     // 高德地圖 API Key
-    const AMAP_API_KEY = '37c88a4c70db1b8cf6b5b1ba8e0b0b9d';
+    const AMAP_API_KEY = '7f9b70b7534ed08f8d1bd7beb673ab3f';
     
     // --- 全域變數 ---
     let tripStartDate = new Date();
@@ -258,6 +258,56 @@
       document.getElementById('statsSection').style.display = 'grid';
     }
 
+    // 模擬天氣數據生成器
+    function generateMockWeatherData(city) {
+      const date = new Date(city.isoDate);
+      const dayOfYear = Math.floor((date - new Date(date.getFullYear(), 0, 0)) / 86400000);
+      
+      // 基於城市和日期生成相對合理的天氣數據
+      const baseTemp = city.location === '敦煌' ? 25 : 
+                      city.location === '蘭州' || city.location === '西寧' ? 18 :
+                      city.location === '大柴旦' || city.location === '茶卡' ? 12 : 20;
+      
+      const tempVariation = Math.sin(dayOfYear / 365 * Math.PI * 2) * 8;
+      const randomVariation = (Math.random() - 0.5) * 6;
+      
+      const temperature = Math.round(baseTemp + tempVariation + randomVariation);
+      const tempMin = Math.round(temperature - 8 - Math.random() * 4);
+      
+      const weatherOptions = ['晴', '多雲', '少雲', '晴間多雲', '陰', '小雨', '中雨'];
+      const weights = [30, 25, 20, 15, 8, 2, 0]; // 好天氣機率較高
+      
+      let totalWeight = weights.reduce((a, b) => a + b, 0);
+      let random = Math.random() * totalWeight;
+      let selectedWeather = weatherOptions[0];
+      
+      for (let i = 0; i < weatherOptions.length; i++) {
+        random -= weights[i];
+        if (random <= 0) {
+          selectedWeather = weatherOptions[i];
+          break;
+        }
+      }
+      
+      const windDirections = ['北風', '南風', '東風', '西風', '東北風', '西北風', '東南風', '西南風'];
+      const windDirection = windDirections[Math.floor(Math.random() * windDirections.length)];
+      const windPower = `${Math.floor(Math.random() * 4) + 1}級`;
+      
+      return {
+        ...city,
+        status: 'SUCCESS',
+        weather: selectedWeather,
+        temperature: temperature,
+        tempMin: tempMin,
+        humidity: `${Math.floor(Math.random() * 30) + 40}%`,
+        windDirection: windDirection,
+        windPower: windPower,
+        reportTime: new Date().toISOString(),
+        error: null,
+        note: '模擬天氣數據（API 暫時不可用）'
+      };
+    }
+
     async function fetchAmapWeather(city) {
       // --- 診斷日誌 ---
       console.log(`[天氣診斷] 地點: ${city.location}, 目標日期: ${city.isoDate}, 高德代碼: ${city.adcode}`);
@@ -273,7 +323,10 @@
         if (!response.ok) throw new Error(`HTTP 錯誤! 狀態: ${response.status}`);
         
         const data = await response.json();
-        if (data.status !== '1') throw new Error(data.info || 'API 返回錯誤');
+        if (data.status !== '1') {
+          console.log(`[天氣診斷] API 失效，使用模擬數據: ${data.info}`);
+          return generateMockWeatherData(city);
+        }
 
         console.log(`[天氣診斷] API 返回成功，預報天數: ${data.forecasts[0].casts.length}`);
 
@@ -319,7 +372,8 @@
         };
       } catch (error) {
         console.error(`獲取 ${city.location} 天氣失敗:`, error);
-        return { ...city, status: 'FETCH_FAILED', error: error.message };
+        console.log(`[天氣診斷] 使用模擬數據作為備用方案`);
+        return generateMockWeatherData(city);
       }
     }
 
@@ -387,6 +441,7 @@
               <div class="border-t border-slate-100 pt-3 mt-3"><h4 class="font-medium mb-1">穿搭建議</h4><p class="text-slate-600 text-sm">${data.outfit}</p></div>
             </div>
             <div class="mt-4 text-xs text-slate-400"><i class="fas fa-clock mr-1"></i>數據更新於: ${new Date(data.reportTime).toLocaleString()}</div>
+            ${data.note ? `<div class="mt-2 p-2 bg-orange-100 text-orange-700 rounded-md text-sm font-semibold"><i class="fas fa-exclamation-circle mr-1"></i>${data.note}</div>` : ''}
           </div>`;
         }
         weatherGrid.innerHTML += cardHtml;
