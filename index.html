@@ -261,14 +261,29 @@
     async function fetchHefengWeather(city) {
       const now = new Date();
       const travelDate = new Date(city.isoDate);
-      const diffDays = Math.ceil((travelDate - now) / (1000 * 60 * 60 * 24));
 
-      if (diffDays >= 7) {
-        return { ...city, status: 'NO_FORECAST', error: '預報超過7天限制' };
+      // --- 診斷日誌 ---
+      console.log(`[天氣診斷] 地點: ${city.location}, 目標日期: ${city.isoDate}`);
+
+      // 為確保天數計算準確，移除時間部分
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const targetDay = new Date(travelDate.getFullYear(), travelDate.getMonth(), travelDate.getDate());
+      
+      const diffTime = targetDay - today;
+      const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+      console.log(`[天氣診斷] 今天: ${today.toISOString().split('T')[0]}, 目標: ${targetDay.toISOString().split('T')[0]}, 天數差: ${diffDays}`);
+
+      // 和風天氣提供7天預報 (0=今天, 6=第7天)
+      if (diffDays < 0 || diffDays >= 7) {
+        console.log(` -> 日期超出範圍，返回「預報未發布」。`);
+        return { ...city, status: 'NO_FORECAST', error: `預報超過7天限制 (${diffDays} 天)` };
       }
 
       try {
-        const url = `https://devapi.qweather.com/v7/weather/7d?location=${city.locationId}&key=${HEFENG_API_KEY}`;
+        console.log(` -> 日期在範圍內，從API獲取數據...`);
+        const timestamp = new Date().getTime(); // 防快取機制
+        const url = `https://devapi.qweather.com/v7/weather/7d?location=${city.locationId}&key=${HEFENG_API_KEY}&_=${timestamp}`;
         
         const response = await fetch(url);
         if (!response.ok) throw new Error(`HTTP 錯誤! 狀態: ${response.status}`);
@@ -276,7 +291,11 @@
         const data = await response.json();
         if (data.code !== '200') throw new Error(data.code || 'API 返回錯誤');
 
+        console.log(`[天氣診斷] API 返回的預報日期: ${data.daily.map(d => d.fxDate).join(', ')}`);
+
         const specificForecast = data.daily.find(cast => cast.fxDate === city.isoDate);
+
+        console.log(`[天氣診斷] 匹配的預報日期: ${specificForecast ? specificForecast.fxDate : '無匹配'}`);
 
         if (!specificForecast) {
            return { ...city, status: 'NO_FORECAST', error: '當日預報數據不存在' };
