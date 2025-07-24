@@ -240,8 +240,8 @@
       const endDate = new Date(tripStartDate);
       endDate.setDate(endDate.getDate() + baseItineraryConfig.length - 1);
       const formatDate = (date) => date.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' });
-      document.getElementById('tripDateRange').textContent = 
-        `${formatDate(startDate)} - ${formatDate(endDate)} | 天氣預報・海拔分析`;
+      document.getElementById('tripDateRange').textContent =
+        `${formatDate(startDate)} - ${formatDate(endDate)} | 短期天氣預報・海拔分析`;
     }
 
     // --- 天氣模組 (改回高德天氣) ---
@@ -265,7 +265,7 @@
     }
 
     // 模擬天氣數據生成器
-    function generateMockWeatherData(city) {
+    function generateMockWeatherData(city, reason = 'API 暫時不可用') {
       const date = new Date(city.isoDate);
       const dayOfYear = Math.floor((date - new Date(date.getFullYear(), 0, 0)) / 86400000);
       
@@ -310,7 +310,7 @@
         windPower: windPower,
         reportTime: new Date().toISOString(),
         error: null,
-        note: '模擬天氣數據（API 暫時不可用）'
+        note: `模擬數據 (${reason})`
       };
     }
 
@@ -331,7 +331,7 @@
         const data = await response.json();
         if (data.status !== '1') {
           console.log(`[天氣診斷] API 失效，使用模擬數據: ${data.info}`);
-          return generateMockWeatherData(city);
+          return generateMockWeatherData(city, data.info);
         }
 
         console.log(`[天氣診斷] API 返回成功，預報天數: ${data.forecasts[0].casts.length}`);
@@ -343,23 +343,11 @@
         console.log(`[天氣診斷] 匹配的預報日期: ${specificForecast ? specificForecast.date : '無匹配'}`);
 
         if (!specificForecast) {
-          // 如果找不到當日預報，使用今天的預報
-          const todayForecast = forecasts[0];
-          console.log(`[天氣診斷] 使用今日預報替代: ${todayForecast.date}`);
-          
+          // 如果找不到當日預報，返回「預報未發布」狀態
           return {
             ...city,
-            status: 'SUCCESS',
-            weather: todayForecast.dayweather,
-            temperature: parseInt(todayForecast.daytemp),
-            tempMin: parseInt(todayForecast.nighttemp),
-            humidity: '未提供',
-            windDirection: todayForecast.daywind,
-            windPower: todayForecast.daypower,
-            reportTime: new Date().toISOString(),
-            forecasts: forecasts,
-            error: null,
-            note: '使用今日預報數據'
+            status: 'NO_FORECAST',
+            error: '預報僅支持未來4天'
           };
         }
 
@@ -379,7 +367,7 @@
       } catch (error) {
         console.error(`獲取 ${city.location} 天氣失敗:`, error);
         console.log(`[天氣診斷] 使用模擬數據作為備用方案`);
-        return generateMockWeatherData(city);
+        return generateMockWeatherData(city, error.message);
       }
     }
 
@@ -389,9 +377,11 @@
 
       weatherData.forEach(data => {
         let cardHtml = '';
+        const isNotAvailable = data.status === 'NO_FORECAST';
         const hasError = data.status === 'FETCH_FAILED';
 
-        if (hasError) {
+        if (isNotAvailable || hasError) {
+          const message = isNotAvailable ? '預報未發布' : '數據獲取失敗';
           const reason = data.error;
 
           cardHtml = `
@@ -402,10 +392,10 @@
                   <h3 class="text-xl font-semibold text-gray-600">${data.day} ${data.location}</h3>
                   <p class="text-gray-500 text-sm">${data.date}</p>
                 </div>
-                <span class="tag bg-gray-300 text-gray-600"><i class="fas fa-exclamation-triangle mr-1"></i> 錯誤</span>
+                <span class="tag bg-gray-300 text-gray-600"><i class="fas fa-hourglass-half mr-1"></i> ${message}</span>
               </div>
               <div class="text-center py-8">
-                <p class="font-semibold text-gray-700">數據獲取失敗</p>
+                <p class="font-semibold text-gray-700">${message}</p>
                 <p class="text-xs text-gray-500 mt-1">${reason}</p>
               </div>
               <div class="border-t border-slate-200 pt-3 mt-3">
