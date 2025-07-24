@@ -157,25 +157,25 @@
 
   <script>
     // --- API Key 配置 ---
-    // 和風天氣 API Key
-    const HEFENG_API_KEY = 'c8b6014c4167454ba1e7f7106353f8e6';
+    // 高德地圖 API Key
+    const AMAP_API_KEY = '37c88a4c70db1b8cf6b5b1ba8e0b0b9d';
     
     // --- 全域變數 ---
     let tripStartDate = new Date();
     let altChart, tempChart;
     
-    // --- 基礎行程配置 (使用和風天氣城市ID) ---
+    // --- 基礎行程配置 (使用高德地圖城市ID) ---
     const baseItineraryConfig = [
-      { day: "D1", location: "蘭州", locationId: "101160101", alt: 1520, itinerary: "下午4點抵達，酒店入住，晚餐，黃河夜景", outfit: "輕便休閒裝" },
-      { day: "D2", location: "蘭州", locationId: "101160101", alt: 1520, itinerary: "甘肅省博物館，五泉山公園，蘭州老街", outfit: "文化裝：長褲+防曬帽" },
-      { day: "D3", location: "門源", locationId: "101160302", alt: 2880, itinerary: "門源油菜花，祁連山草原", outfit: "戶外裝：速干長袖+防風外套" },
-      { day: "D4", location: "張掖", locationId: "101160601", alt: 1474, itinerary: "平山湖大峽谷，七彩丹霞", outfit: "戶外攝影裝：防風外套+防滑鞋" },
-      { day: "D5", location: "嘉峪關", locationId: "101160701", alt: 1650, itinerary: "嘉峪關關城，長城第一墩", outfit: "文化遊：棉麻長袖+遮陽帽" },
-      { day: "D6", location: "敦煌", locationId: "101160801", alt: 1139, itinerary: "莫高窟，鳴沙山月牙泉", outfit: "沙漠裝：防風沙眼鏡+頭巾" },
-      { day: "D7", location: "大柴旦", locationId: "101160203", alt: 3173, itinerary: "絲綢遺址城，黑獨山", outfit: "探索裝：工裝外套+防滑靴" },
-      { day: "D8", location: "茶卡", locationId: "101160204", alt: 3059, itinerary: "水上雅丹，前往茶卡鹽湖", outfit: "鹽湖裝：亮色長裙/褲+拖鞋" },
-      { day: "D9", location: "茶卡", locationId: "101160204", alt: 3059, itinerary: "茶卡鹽湖全日遊（天空之鏡）", outfit: "攝影裝：鮮豔色彩衣物" },
-      { day: "D10", location: "西寧", locationId: "101160301", alt: 2261, itinerary: "青海湖，日月山，返回西寧", outfit: "返程裝：舒適便裝" }
+      { day: "D1", location: "蘭州", adcode: "620100", alt: 1520, itinerary: "下午4點抵達，酒店入住，晚餐，黃河夜景", outfit: "輕便休閒裝" },
+      { day: "D2", location: "蘭州", adcode: "620100", alt: 1520, itinerary: "甘肅省博物館，五泉山公園，蘭州老街", outfit: "文化裝：長褲+防曬帽" },
+      { day: "D3", location: "門源", adcode: "632221", alt: 2880, itinerary: "門源油菜花，祁連山草原", outfit: "戶外裝：速干長袖+防風外套" },
+      { day: "D4", location: "張掖", adcode: "620700", alt: 1474, itinerary: "平山湖大峽谷，七彩丹霞", outfit: "戶外攝影裝：防風外套+防滑鞋" },
+      { day: "D5", location: "嘉峪關", adcode: "620200", alt: 1650, itinerary: "嘉峪關關城，長城第一墩", outfit: "文化遊：棉麻長袖+遮陽帽" },
+      { day: "D6", location: "敦煌", adcode: "620982", alt: 1139, itinerary: "莫高窟，鳴沙山月牙泉", outfit: "沙漠裝：防風沙眼鏡+頭巾" },
+      { day: "D7", location: "大柴旦", adcode: "632857", alt: 3173, itinerary: "絲綢遺址城，黑獨山", outfit: "探索裝：工裝外套+防滑靴" },
+      { day: "D8", location: "茶卡", adcode: "632725", alt: 3059, itinerary: "水上雅丹，前往茶卡鹽湖", outfit: "鹽湖裝：亮色長裙/褲+拖鞋" },
+      { day: "D9", location: "茶卡", adcode: "632725", alt: 3059, itinerary: "茶卡鹽湖全日遊（天空之鏡）", outfit: "攝影裝：鮮豔色彩衣物" },
+      { day: "D10", location: "西寧", adcode: "630100", alt: 2261, itinerary: "青海湖，日月山，返回西寧", outfit: "返程裝：舒適便裝" }
     ];
 
     // 動態生成帶日期的行程配置
@@ -241,13 +241,13 @@
       endDate.setDate(endDate.getDate() + baseItineraryConfig.length - 1);
       const formatDate = (date) => date.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' });
       document.getElementById('tripDateRange').textContent = 
-        `${formatDate(startDate)} - ${formatDate(endDate)} | 天氣預報 (7日)・海拔分析`;
+        `${formatDate(startDate)} - ${formatDate(endDate)} | 天氣預報・海拔分析`;
     }
 
-    // --- 天氣模組 (已遷移至和風天氣) ---
+    // --- 天氣模組 (改回高德天氣) ---
     async function loadWeather() {
       const currentItinerary = getItineraryConfig();
-      const promises = currentItinerary.map(city => fetchHefengWeather(city));
+      const promises = currentItinerary.map(city => fetchAmapWeather(city));
       const weatherData = await Promise.all(promises);
       
       renderWeatherCards(weatherData);
@@ -258,60 +258,63 @@
       document.getElementById('statsSection').style.display = 'grid';
     }
 
-    async function fetchHefengWeather(city) {
-      const now = new Date();
-      const travelDate = new Date(city.isoDate);
-
+    async function fetchAmapWeather(city) {
       // --- 診斷日誌 ---
-      console.log(`[天氣診斷] 地點: ${city.location}, 目標日期: ${city.isoDate}`);
-
-      // 為確保天數計算準確，移除時間部分
-      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      const targetDay = new Date(travelDate.getFullYear(), travelDate.getMonth(), travelDate.getDate());
-      
-      const diffTime = targetDay - today;
-      const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
-
-      console.log(`[天氣診斷] 今天: ${today.toISOString().split('T')[0]}, 目標: ${targetDay.toISOString().split('T')[0]}, 天數差: ${diffDays}`);
-
-      // 和風天氣提供7天預報 (0=今天, 6=第7天)
-      if (diffDays < 0 || diffDays >= 7) {
-        console.log(` -> 日期超出範圍，返回「預報未發布」。`);
-        return { ...city, status: 'NO_FORECAST', error: `預報超過7天限制 (${diffDays} 天)` };
-      }
+      console.log(`[天氣診斷] 地點: ${city.location}, 目標日期: ${city.isoDate}, 高德代碼: ${city.adcode}`);
 
       try {
-        console.log(` -> 日期在範圍內，從API獲取數據...`);
+        // 高德天氣 API 調用
         const timestamp = new Date().getTime(); // 防快取機制
-        const url = `https://devapi.qweather.com/v7/weather/7d?location=${city.locationId}&key=${HEFENG_API_KEY}&_=${timestamp}`;
+        const url = `https://restapi.amap.com/v3/weather/weatherInfo?city=${city.adcode}&key=${AMAP_API_KEY}&extensions=all&_=${timestamp}`;
+        
+        console.log(`[天氣診斷] API URL: ${url}`);
         
         const response = await fetch(url);
         if (!response.ok) throw new Error(`HTTP 錯誤! 狀態: ${response.status}`);
         
         const data = await response.json();
-        if (data.code !== '200') throw new Error(data.code || 'API 返回錯誤');
+        if (data.status !== '1') throw new Error(data.info || 'API 返回錯誤');
 
-        console.log(`[天氣診斷] API 返回的預報日期: ${data.daily.map(d => d.fxDate).join(', ')}`);
+        console.log(`[天氣診斷] API 返回成功，預報天數: ${data.forecasts[0].casts.length}`);
 
-        const specificForecast = data.daily.find(cast => cast.fxDate === city.isoDate);
+        // 查找當日預報
+        const forecasts = data.forecasts[0].casts;
+        const specificForecast = forecasts.find(cast => cast.date === city.isoDate);
 
-        console.log(`[天氣診斷] 匹配的預報日期: ${specificForecast ? specificForecast.fxDate : '無匹配'}`);
+        console.log(`[天氣診斷] 匹配的預報日期: ${specificForecast ? specificForecast.date : '無匹配'}`);
 
         if (!specificForecast) {
-           return { ...city, status: 'NO_FORECAST', error: '當日預報數據不存在' };
+          // 如果找不到當日預報，使用今天的預報
+          const todayForecast = forecasts[0];
+          console.log(`[天氣診斷] 使用今日預報替代: ${todayForecast.date}`);
+          
+          return {
+            ...city,
+            status: 'SUCCESS',
+            weather: todayForecast.dayweather,
+            temperature: parseInt(todayForecast.daytemp),
+            tempMin: parseInt(todayForecast.nighttemp),
+            humidity: '未提供',
+            windDirection: todayForecast.daywind,
+            windPower: todayForecast.daypower,
+            reportTime: new Date().toISOString(),
+            forecasts: forecasts,
+            error: null,
+            note: '使用今日預報數據'
+          };
         }
 
         return {
           ...city,
           status: 'SUCCESS',
-          weather: specificForecast.textDay,
-          temperature: parseInt(specificForecast.tempMax),
-          tempMin: parseInt(specificForecast.tempMin),
-          humidity: specificForecast.humidity,
-          windDirection: specificForecast.windDirDay,
-          windPower: specificForecast.windScaleDay + '級',
-          reportTime: data.updateTime,
-          forecasts: data.daily,
+          weather: specificForecast.dayweather,
+          temperature: parseInt(specificForecast.daytemp),
+          tempMin: parseInt(specificForecast.nighttemp),
+          humidity: '未提供',
+          windDirection: specificForecast.daywind,
+          windPower: specificForecast.daypower,
+          reportTime: new Date().toISOString(),
+          forecasts: forecasts,
           error: null
         };
       } catch (error) {
@@ -326,12 +329,10 @@
 
       weatherData.forEach(data => {
         let cardHtml = '';
-        const isNotAvailable = data.status === 'NO_FORECAST';
         const hasError = data.status === 'FETCH_FAILED';
 
-        if (isNotAvailable || hasError) {
-          const message = isNotAvailable ? '預報尚未發布' : '數據獲取失敗';
-          const reason = isNotAvailable ? '和風天氣僅提供7天內預報' : data.error;
+        if (hasError) {
+          const reason = data.error;
 
           cardHtml = `
           <div class="card bg-gray-100 rounded-xl p-6 opacity-70">
@@ -341,10 +342,10 @@
                   <h3 class="text-xl font-semibold text-gray-600">${data.day} ${data.location}</h3>
                   <p class="text-gray-500 text-sm">${data.date}</p>
                 </div>
-                <span class="tag bg-gray-300 text-gray-600"><i class="fas fa-hourglass-half mr-1"></i> 待定</span>
+                <span class="tag bg-gray-300 text-gray-600"><i class="fas fa-exclamation-triangle mr-1"></i> 錯誤</span>
               </div>
               <div class="text-center py-8">
-                <p class="font-semibold text-gray-700">${message}</p>
+                <p class="font-semibold text-gray-700">數據獲取失敗</p>
                 <p class="text-xs text-gray-500 mt-1">${reason}</p>
               </div>
               <div class="border-t border-slate-200 pt-3 mt-3">
@@ -368,6 +369,7 @@
                   <h3 class="text-xl font-semibold">${data.day} ${data.location}</h3>
                   <p class="text-slate-500 text-sm">${data.date}</p>
                   <p class="text-slate-400 text-xs">${data.fullDate}</p>
+                  ${data.note ? `<p class="text-orange-500 text-xs">⚠️ ${data.note}</p>` : ''}
                 </div>
                 <span class="tag ${weatherInfo.color}"><i class="fas ${weatherInfo.icon} mr-1"></i> ${data.weather}</span>
               </div>
@@ -377,7 +379,7 @@
                 <div class="text-slate-600 text-sm">
                   <div><i class="fas fa-thermometer-half mr-1"></i> 預報: ${forecastTemp}</div>
                   <div><i class="fas fa-wind mr-1"></i> ${data.windDirection} ${data.windPower}</div>
-                  <div><i class="fas fa-tint mr-1"></i> 濕度: ${data.humidity}%</div>
+                  <div><i class="fas fa-tint mr-1"></i> 濕度: ${data.humidity}</div>
                 </div>
               </div>
               ${data.alt > 3000 ? '<div class="bg-red-50 p-3 rounded-lg mb-3"><p class="text-red-600 font-semibold text-sm"><i class="fas fa-exclamation-circle mr-1"></i>高原反應預警</p><p class="text-xs text-red-500">建議：多喝水，避免劇烈運動</p></div>' : ''}

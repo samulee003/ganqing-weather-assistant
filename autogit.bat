@@ -1,4 +1,5 @@
 @echo off
+chcp 65001 > nul
 
 echo 自動 git 推送腳本
 
