@@ -247,8 +247,14 @@
     // --- 天氣模組 (改回高德天氣) ---
     async function loadWeather() {
       const currentItinerary = getItineraryConfig();
-      const promises = currentItinerary.map(city => fetchAmapWeather(city));
-      const weatherData = await Promise.all(promises);
+      const weatherData = [];
+
+      for (const city of currentItinerary) {
+        const data = await fetchAmapWeather(city);
+        weatherData.push(data);
+        // 引入延遲，避免觸發 API QPS 限制 (約 500 毫秒)
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
       
       renderWeatherCards(weatherData);
       renderTemperatureChart(weatherData);
